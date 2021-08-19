@@ -38,4 +38,25 @@ app.get('/contracts',getProfile ,async (req, res) =>{
     res.json(contracts)
 })
 
+app.get('/jobs/unpaid', getProfile, async (req, res) =>{
+    const {Contract, Job} = req.app.get('models')
+    const profile = req.profile
+
+    let whereClause = { status: "in_progress" }
+    if(profile.type == "client")
+        whereClause.ClientId = profile.id
+    else
+        whereClause.ContractId = profile.id
+
+    const contracts = await Job.findAll({
+        where: {paid: null},
+        include: [{
+            model:Contract,
+            where: whereClause,
+            attributes: []
+        }]
+    })
+    res.json(contracts)
+})
+
 module.exports = app;

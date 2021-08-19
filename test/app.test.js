@@ -66,4 +66,31 @@ describe('CONTRACTS', () => {
 
     });
 
+    describe('GET /jobs/unpaid', () => {
+
+        it('should return non-paid jobs from in-progress contract ', () => {
+            return request(app).get('/jobs/unpaid')
+            .set({
+                profile_id: 1
+            })
+            .expect(200)
+            .then(result => {
+                assert(result.body.length == 1);
+            });
+        });
+
+        it('should return non-paid jobs from in-progress contract ', () => {
+            return request(app).get('/jobs/unpaid')
+            .set({
+                profile_id: 2
+            })
+            .expect(200)
+            .then(result => {
+                assert(result.body.length == 2);
+            });
+        });
+
+
+    });
+
 });
