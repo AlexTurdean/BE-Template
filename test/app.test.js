@@ -171,3 +171,23 @@ describe('JOBS', () => {
 
     });
 });
+
+
+
+describe('Admin', () => {
+
+    describe('POST /admin/best-clients?start=<date>&end=<date>&limit=<integer>', () => {
+
+
+        it('should return top professions', () => {
+            return request(app).get("/admin/best-clients?start=2020-1-1&end=2021-1-1&limit=3")
+            .expect(200)
+            .then(result => {
+                assert(result.body.length == 3);
+                assert(result.body[0].paid == 2020)
+                assert(result.body[1].paid == 442)
+            })
+        });
+
+    });
+});

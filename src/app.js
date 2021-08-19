@@ -163,5 +163,47 @@ app.get('/admin/best-profession', async (req, res) =>{
 
 })
 
+app.get('/admin/best-clients', async (req, res) =>{
+    const {Profile, Contract, Job} = req.app.get('models')
+    let {start, end, limit=2} = req.query
+    if(isNaN(Date.parse(start)) || isNaN(Date.parse(end)))
+        return res.status(400).send("Start date and end date are required");
+    start = new Date(start)
+    end = new Date(end)
+
+    let topClients = await Job.findAll({
+        attributes:[ [fn('SUM', col('price')), 'total'] ],
+        where: {
+            paymentDate: {
+                [Op.between]: [start, end]
+            },
+            paid: true
+        },
+        include:[{
+            model: Contract,
+            required: true,
+            attributes: ['ClientId'],
+            include: [{
+                model:Profile,
+                as: 'Client',
+                attributes: ['firstName', 'lastName', 'id']
+            }]
+        }],
+        group: ["Contract.ClientId"],
+        order: [ [ fn('SUM', col('price')), 'DESC'] ],
+        limit,
+        raw:true
+    });
+
+    let result = topClients.map(item => {
+        return {
+            id: item['Contract.Client.id'],
+            fullname: (item['Contract.Client.firstName'] + " " +  item['Contract.Client.lastName']),
+            paid: item.total,
+        }
+    });
+    res.status(200).send(result);
+    /// this is much better than best-profession but is not nice I must say. I am happy that i managed to do it with sequelize
+})
 
 module.exports = app;
