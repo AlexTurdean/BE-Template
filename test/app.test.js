@@ -51,4 +51,19 @@ describe('CONTRACTS', () => {
 
     });
 
+    describe('GET /contracts', () => {
+
+        it('should return non-terminated contracts', () => {
+            return request(app).get('/contracts')
+            .set({
+                profile_id: 1
+            })
+            .expect(200)
+            .then(result => {
+                assert(result.body.length == 1);
+            });
+        });
+
+    });
+
 });

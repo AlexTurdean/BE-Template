@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const {sequelize} = require('./model')
 const {getProfile} = require('./middleware/getProfile')
+const {Op} = require('sequelize');
 const app = express();
 app.use(bodyParser.json());
 app.set('sequelize', sequelize)
@@ -22,4 +23,19 @@ app.get('/contracts/:id',getProfile ,async (req, res) =>{
             return res.status(403).end()
     res.json(contract)
 })
+
+app.get('/contracts',getProfile ,async (req, res) =>{
+    const {Contract} = req.app.get('models')
+    const profile = req.profile
+
+    let whereClause = { status: { [Op.ne]: "terminated" } }
+    if(profile.type == "client")
+        whereClause.ClientId = profile.id
+    else
+        whereClause.ContractId = profile.id
+
+    const contracts = await Contract.findAll({where: whereClause})
+    res.json(contracts)
+})
+
 module.exports = app;
