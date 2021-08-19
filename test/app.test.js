@@ -2,6 +2,8 @@ const assert = require('assert');
 const app = require('../src/app');
 const request = require('supertest');
 
+//// Normally I would create another database for testing, here I use the seed data for testing so npm seed would be required in order for all tests to pass
+
 describe('CONTRACTS', () => {
 
     describe('GET /contracts/:id', () => {
@@ -65,6 +67,9 @@ describe('CONTRACTS', () => {
         });
 
     });
+})
+
+describe('JOBS', () => {
 
     describe('GET /jobs/unpaid', () => {
 
@@ -90,6 +95,41 @@ describe('CONTRACTS', () => {
             });
         });
 
+    });
+
+    describe('POST /jobs/:job_id/pay', () => {
+
+        it('should trow error for trying to pay as contractor', () => {
+            return request(app).post('/jobs/1/pay')
+            .set({
+                profile_id: 5
+            })
+            .expect(400)
+        });
+
+        it('should pay the job', () => {
+            return request(app).post('/jobs/1/pay')
+            .set({
+                profile_id: 1
+            })
+            .expect(200)
+        });
+
+        it('should trow error for already payd job', () => {
+            return request(app).post('/jobs/1/pay')
+            .set({
+                profile_id: 1
+            })
+            .expect(400)
+        });
+
+        it('should trow error for low balance', () => {
+            return request(app).post('/jobs/5/pay')
+            .set({
+                profile_id: 4
+            })
+            .expect(400)
+        });
 
     });
 
