@@ -5,12 +5,15 @@
   "dependencies": {
     "body-parser": "^1.19.0",
     "express": "4.17.1",
+    "mocha": "^9.0.3",
     "sequelize": "^6.3.4",
-    "sqlite3": "^4.0.1"
+    "sqlite3": "^4.0.1",
+    "supertest": "^6.1.6"
   },
   "scripts": {
     "start": "nodemon ./src/server.js",
-    "seed": "node ./scripts/seedDb.js"
+    "seed": "node ./scripts/seedDb.js",
+    "test": "mocha --exit"
   },
   "devDependencies": {
     "concurrently": "4.1.0",
