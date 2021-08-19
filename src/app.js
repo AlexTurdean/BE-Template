@@ -81,4 +81,40 @@ app.post('/jobs/:job_id/pay', getProfile, clientPay,  async (req, res) =>{
 
 })
 
+/// It's not clear who makes the deposit, here i will assume a thid-party. This route will require some authorization
+/// I guess if it was from client to client it would be called transfer hahaha
+app.post('/balances/deposit/:userId', async (req, res) =>{
+    const {Profile, Contract, Job} = req.app.get('models')
+    const {depositAmount} = req.body
+    if(isNaN(depositAmount))
+        return res.status(400).send("depositAmount is required with a number value");
+
+    let profile = await Profile.findOne({
+        where: {id: req.params.userId}
+    });
+    if(!profile)
+        return res.status(404).end();
+    if(profile.type != "client")
+        return res.status(400).send("Cannot deposit in non-client account");
+
+    const totalToPay = await Job.sum("price", {
+        where:{
+            paid: null
+        },
+        include:[{
+            model: Contract,
+            where:{
+                ClientId: profile.id
+            }
+        }]
+    });
+    if(totalToPay < depositAmount * 4)
+        return res.status(400).send("You can't depost more than 25% of the client's jobs to pay");
+
+    profile.balance += depositAmount;
+    await profile.save();
+    res.status(200).end();
+
+})
+
 module.exports = app;

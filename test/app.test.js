@@ -97,6 +97,7 @@ describe('JOBS', () => {
 
     });
 
+
     describe('POST /jobs/:job_id/pay', () => {
 
         it('should trow error for trying to pay as contractor', () => {
@@ -132,5 +133,41 @@ describe('JOBS', () => {
         });
 
     });
+})
 
+
+describe('JOBS', () => {
+
+    describe('POST /balances/deposit/:userId', () => {
+
+        it('should trow error for missing depositAmount', () => {
+            return request(app).post("/balances/deposit/1")
+            .expect(400)
+        });
+
+        it('should trow error for non-existing user', () => {
+            return request(app).post("/balances/deposit/100000")
+            .send({
+                depositAmount: 50
+            })
+            .expect(404)
+        });
+
+        it('should add the the user balance', () => {
+            return request(app).post("/balances/deposit/1")
+            .send({
+                depositAmount: 50
+            })
+            .expect(200)
+        });
+
+        it('should trow error for too big depositAmount', () => {
+            return request(app).post('/balances/deposit/1')
+            .send({
+                depositAmount: 51
+            })
+            .expect(400)
+        });
+
+    });
 });
