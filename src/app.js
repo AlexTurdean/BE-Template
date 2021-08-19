@@ -3,7 +3,7 @@ const bodyParser = require('body-parser');
 const {sequelize} = require('./model')
 const {getProfile} = require('./middleware/getProfile')
 const {clientPay} = require('./middleware/clientPay')
-const {Op} = require('sequelize');
+const {Op, fn, col} = require('sequelize');
 const app = express();
 app.use(bodyParser.json());
 app.set('sequelize', sequelize)
@@ -116,5 +116,52 @@ app.post('/balances/deposit/:userId', async (req, res) =>{
     res.status(200).end();
 
 })
+
+///It will require some kind of authentication
+///Date are in format YYYY-MM-DD
+///Parsing takes in consideration the timezone, it would require some more attention
+app.get('/admin/best-profession', async (req, res) =>{
+    const {Profile, Contract, Job} = req.app.get('models')
+    let {start, end} = req.query
+    if(isNaN(Date.parse(start)) || isNaN(Date.parse(end)))
+        return res.status(400).send("Start date and end date are required");
+    start = new Date(start)
+    end = new Date(end)
+    /// SEQUELIZE IS A PAIN FOR NESTED JOINS, I SHOULD HAVE CREATED A RAW QUERY. I LEAVE IT LIKE THIS AFTER I USED SO MUCH TIME TRYING :(
+    let topProfession = await Profile.findAll({
+        where: { type: 'contractor'},
+        attributes: [ 'profession','id' ],
+        include:[{
+            model: Contract,
+            as: 'Contractor',
+            required: true,
+            attributes: [],
+            include: [{
+                model: Job,
+                attributes:[ [fn('SUM', col('price')), 'total'] ],
+                where: {
+                    paymentDate: {
+                        [Op.between]: [start, end]
+                    },
+                    paid: true
+                }
+            }]
+        }],
+        raw: true,
+        group: ["Profile.id"]
+        //limit: 1,
+        //order:[['Profile.Contractor.Jobs.total']]
+    })
+    let max = 0;
+    let result = {profession: "Software engineer", total: -100 };  // Here i pay for this code
+    topProfession.forEach(item => {
+        if(item["Contractor.Jobs.total"] > result.total)
+            result = { profession: item.profession, total: item["Contractor.Jobs.total"]}
+    });
+
+    res.status(200).send(result);
+
+})
+
 
 module.exports = app;
