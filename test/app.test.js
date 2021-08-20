@@ -2,7 +2,7 @@ const assert = require('assert');
 const app = require('../src/app');
 const request = require('supertest');
 
-//// Normally I would create another database for testing, here I use the seed data for testing so npm seed would be required in order for all tests to pass
+//// Normally I would create another database for testing, here I use the seed data for testing
 
 describe('CONTRACTS', () => {
 

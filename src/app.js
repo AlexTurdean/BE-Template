@@ -9,10 +9,12 @@ app.use(bodyParser.json());
 app.set('sequelize', sequelize)
 app.set('models', sequelize.models)
 
-/**
- * FIX ME!
- * @returns contract by id
- */
+app.use(function errorHandler (err, req, res, next) {
+    const status = err.status || 500;
+    const message = err.message || 'Something went wrong';
+    res.status(status).send({status, message});
+});
+
 app.get('/contracts/:id',getProfile ,async (req, res) =>{
     const {Contract} = req.app.get('models')
     const profile = req.profile
@@ -35,8 +37,11 @@ app.get('/contracts',getProfile ,async (req, res) =>{
     else
         whereClause.ContractId = profile.id
 
-    const contracts = await Contract.findAll({where: whereClause})
-    res.json(contracts)
+    Contract.findAll({where: whereClause}).then(contracts =>{
+        res.json(contracts)
+    }).catch(err => {
+        next(err);
+    })
 })
 
 app.get('/jobs/unpaid', getProfile, async (req, res) =>{
@@ -49,15 +54,18 @@ app.get('/jobs/unpaid', getProfile, async (req, res) =>{
     else
         whereClause.ContractId = profile.id
 
-    const contracts = await Job.findAll({
+    Job.findAll({
         where: {paid: null},
         include: [{
             model:Contract,
             where: whereClause,
             attributes: []
         }]
+    }).then(contracts => {
+        res.json(contracts)
+    }).catch(err => {
+        next(err);
     })
-    res.json(contracts)
 })
 
 app.post('/jobs/:job_id/pay', getProfile, clientPay,  async (req, res) =>{
@@ -65,19 +73,23 @@ app.post('/jobs/:job_id/pay', getProfile, clientPay,  async (req, res) =>{
     let profile = req.profile
     let job = req.job
 
-    let contract = await Contract.findOne({where: {id: job.ContractId}});
-    let contractorProfile = await Profile.findOne({
-        where: {id: contract.ContractorId }
-    })
+    try {
+        let contract = await Contract.findOne({where: {id: job.ContractId}});
+        let contractorProfile = await Profile.findOne({
+            where: {id: contract.ContractorId }
+        })
 
-    job.paid = true;
-    job.paymentDate = new Date();
-    await job.save();
-    profile.balance -=job.price;
-    await profile.save();
-    contractorProfile.balance += job.price;
-    await contractorProfile.save();
-    res.status(200).end();
+        job.paid = true;
+        job.paymentDate = new Date();
+        await job.save();
+        profile.balance -=job.price;
+        await profile.save();
+        contractorProfile.balance += job.price;
+        await contractorProfile.save();
+        res.status(200).end();
+    } catch (err) {
+        next(err);
+    }
 
 })
 
@@ -96,25 +108,26 @@ app.post('/balances/deposit/:userId', async (req, res) =>{
         return res.status(404).end();
     if(profile.type != "client")
         return res.status(400).send("Cannot deposit in non-client account");
-
-    const totalToPay = await Job.sum("price", {
-        where:{
-            paid: null
-        },
-        include:[{
-            model: Contract,
+    try {
+        let totalToPay = await Job.sum("price", {
             where:{
-                ClientId: profile.id
-            }
-        }]
-    });
-    if(totalToPay < depositAmount * 4)
-        return res.status(400).send("You can't depost more than 25% of the client's jobs to pay");
-
-    profile.balance += depositAmount;
-    await profile.save();
-    res.status(200).end();
-
+                paid: null
+            },
+            include:[{
+                model: Contract,
+                where:{
+                    ClientId: profile.id
+                }
+            }]
+        })
+        if(totalToPay < depositAmount * 4)
+            return res.status(400).send("You can't depost more than 25% of the client's jobs to pay");
+        profile.balance += depositAmount;
+        await profile.save();
+        res.status(200).end();
+    } catch(err) {
+        next(err);
+    }
 })
 
 ///It will require some kind of authentication
@@ -127,8 +140,8 @@ app.get('/admin/best-profession', async (req, res) =>{
         return res.status(400).send("Start date and end date are required");
     start = new Date(start)
     end = new Date(end)
-    /// SEQUELIZE IS A PAIN FOR NESTED JOINS, I SHOULD HAVE CREATED A RAW QUERY. I LEAVE IT LIKE THIS AFTER I USED SO MUCH TIME TRYING :(
-    let topProfession = await Profile.findAll({
+
+    Profile.findAll({
         where: { type: 'contractor'},
         attributes: [ 'profession','id' ],
         include:[{
@@ -148,19 +161,22 @@ app.get('/admin/best-profession', async (req, res) =>{
             }]
         }],
         raw: true,
-        group: ["Profile.id"]
+        group: ["Profile.id"]  /// profession that earned the most money is the max out of contractors i suppose, if you want total paid for a profession change to -> group: ["Profile.profession"]
         //limit: 1,
         //order:[['Profile.Contractor.Jobs.total']]
-    })
-    let max = 0;
-    let result = {profession: "Software engineer", total: -100 };  // Here i pay for this code
-    topProfession.forEach(item => {
-        if(item["Contractor.Jobs.total"] > result.total)
-            result = { profession: item.profession, total: item["Contractor.Jobs.total"]}
+    }).then(contractors => {
+        let result = {total: 0}
+        contractors.forEach(item => {
+            if(item["Contractor.Jobs.total"] > result.total)
+                result = {
+                    profession: item.profession,
+                    total: item["Contractor.Jobs.total"]
+                }
+        });
+        res.json(result);
+    }).catch(err => {
+        next(err);
     });
-
-    res.status(200).send(result);
-
 })
 
 app.get('/admin/best-clients', async (req, res) =>{
@@ -193,17 +209,19 @@ app.get('/admin/best-clients', async (req, res) =>{
         order: [ [ fn('SUM', col('price')), 'DESC'] ],
         limit,
         raw:true
-    });
-
-    let result = topClients.map(item => {
-        return {
-            id: item['Contract.Client.id'],
-            fullname: (item['Contract.Client.firstName'] + " " +  item['Contract.Client.lastName']),
-            paid: item.total,
-        }
-    });
-    res.status(200).send(result);
-    /// this is much better than best-profession but is not nice I must say. I am happy that i managed to do it with sequelize
+    }).then(topClients => {
+        let result = topClients.map(item => {
+            return {
+                id: item['Contract.Client.id'],
+                fullname: (item['Contract.Client.firstName'] + " " +
+                  item['Contract.Client.lastName']),
+                paid: item.total,
+            }
+        });
+        res.json(result);
+    }).catch(err => {
+        next(err);
+    })
 })
 
 module.exports = app;
